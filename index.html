@@ -685,16 +685,6 @@
     }
     .file-content-input:focus { outline: none; border-color: var(--accent); }
 
-
-    .fm-toolbar{display:flex;gap:5px;flex-wrap:wrap}.fm-toolbar button,.fm-row button{font-size:.68rem;padding:5px 7px}
-    .fm-breadcrumb{font-size:.7rem;color:var(--text-muted);overflow-wrap:anywhere}
-    .fm-list{display:flex;flex-direction:column;gap:5px;min-height:36px;padding:5px;border:1px dashed var(--border);border-radius:8px}
-    .fm-row{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:6px;align-items:center;padding:7px;background:var(--surface2);border-radius:6px}
-    .fm-row.drag-over{outline:1px solid var(--accent)}.fm-file-name{min-width:0;overflow-wrap:anywhere;font-size:.72rem}
-    .fm-meta{font-size:.62rem;color:var(--text-muted);margin-top:3px}.fm-row-actions{display:flex;gap:3px;flex-wrap:wrap}
-    .fm-drop{font-size:.7rem;text-align:center;padding:10px;border:1px dashed var(--accent);border-radius:8px;color:var(--text-muted)}
-    .fm-editor{width:100%;min-height:180px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;font:12px/1.5 monospace}
-
     /* ── Responsive ── */
     @media (max-width: 520px) {
       #panel { width: 100vw; }
@@ -1777,7 +1767,7 @@
     for (let p = 0; p < PASSES && names.length; p++) {
       const passMap = { ...externalUrlMap };
       names.forEach(name => {
-        const url = URL.createObjectURL(new Blob([contents[name]], { type: /\\.css$/i.test(name) ? "text/css" : /\\.js$/i.test(name) ? "text/javascript" : /\\.json$/i.test(name) ? "application/json" : /\\.svg$/i.test(name) ? "image/svg+xml" : /\\.txt$/i.test(name) ? "text/plain" : "text/html" }));
+        const url = URL.createObjectURL(new Blob([contents[name]], { type: "text/html" }));
         passMap[name] = url;
         newBlobUrls.push(url);
       });
@@ -1890,27 +1880,21 @@
 
         <textarea class="slot-input" placeholder="HTML kodunu buraya yapıştırın...">${escHtml(slot.html || '')}</textarea>
 
-        <div class="files-section file-manager">
-          <div class="files-header"><span>🗂️ Dosya ve Klasör Yöneticisi</span><span class="slot-meta">Bu slotun içinde</span></div>
-          <div class="fm-toolbar">
-            <button type="button" class="icon-btn fm-new-folder">＋ Klasör</button>
-            <button type="button" class="icon-btn fm-upload">⬆ Dosya yükle</button>
-            <button type="button" class="icon-btn fm-select-all">Tümünü seç</button>
-            <button type="button" class="icon-btn fm-move">Taşı</button>
-            <button type="button" class="icon-btn danger fm-delete">Sil</button>
-            <button type="button" class="icon-btn fm-download">İndir</button>
+        <div class="files-section">
+          <div class="files-header">
+            <span>📎 Ek Dosyalar (harici .html çağrıları için)</span>
+            <button type="button" class="icon-btn add-file-btn">+ Dosya</button>
           </div>
-          <div class="fm-breadcrumb"></div>
-          <div class="fm-drop">Dosyaları buraya sürükleyin veya “Dosya yükle”ye basın. Birden fazla dosya seçebilirsiniz.</div>
-          <input type="file" class="fm-upload-input" multiple style="display:none">
-          <input type="file" class="fm-replace-input" style="display:none">
-          <div class="fm-list files-list"></div>
+          <div class="files-list"></div>
           <div class="file-add-form">
-            <input type="text" class="file-name-input" placeholder="Dosya adı ve uzantısı (ör. detay.html)" />
-            <textarea class="file-content-input" placeholder="HTML, CSS, JS veya TXT içeriği"></textarea>
+            <input type="text" class="file-name-input" placeholder="ör: detay.html (ana koddaki dosya adıyla birebir aynı olmalı)" />
+            <textarea class="file-content-input" placeholder="HTML/metin dosyasıysa içeriğini buraya yazın veya dosya seçin..."></textarea>
             <input type="file" class="file-upload-input" style="font-size:.72rem;color:var(--text-muted);" />
-            <div style="font-size:.65rem;color:var(--text-muted)">HTML/CSS/JS/TXT Firestore belgesinde saklanır; Cloudinary'ye gönderilmez. Büyük metinler Firestore belge sınırına takılabilir.</div>
-            <div style="display:flex;gap:6px"><button type="button" class="icon-btn file-confirm-btn">Ekle</button><button type="button" class="icon-btn file-cancel-btn">İptal</button></div>
+            <div style="font-size:.65rem;color:var(--text-muted);">Resim, PDF, Word, ZIP ve diğer dosyalar Cloudinary'ye yüklenir. Dosya adı aynı olmalıysa uzantısını koruyun.</div>
+            <div style="display:flex;gap:6px;">
+              <button type="button" class="icon-btn file-confirm-btn">Ekle</button>
+              <button type="button" class="icon-btn file-cancel-btn">İptal</button>
+            </div>
           </div>
         </div>
 
@@ -1925,76 +1909,180 @@
         </div>
       `;
 
-      // ── Slot içi dosya/klasör yöneticisi ──
+      // ── Ek Dosyalar (harici .html çağrıları) ──
       let pendingFiles = { ...(slot.files || {}) };
-      let pendingFolders = [...(slot.folders || [])];
-      const fm = card.querySelector(".file-manager");
-      const filesListEl = fm.querySelector(".files-list");
-      const addFileBtn = fm.querySelector(".fm-upload");
-      const addForm = fm.querySelector(".file-add-form");
-      const fileNameInput = fm.querySelector(".file-name-input");
-      const fileContentInput = fm.querySelector(".file-content-input");
-      const fileUploadInput = fm.querySelector(".file-upload-input");
-      const uploadInput = fm.querySelector(".fm-upload-input");
-      const replaceInput = fm.querySelector(".fm-replace-input");
-      const breadcrumb = fm.querySelector(".fm-breadcrumb");
-      let editingFileName = null, currentFolder = "", selectedPaths = new Set();
-      const isTextPath = n => /\.(html?|css|js|txt|json|xml|svg|md)$/i.test(n);
-      const parentPath = p => p.includes("/") ? p.slice(0,p.lastIndexOf("/")) : "";
-      const basename = p => p.split("/").pop();
-      const joinPath = (folder,name) => (folder ? folder+"/" : "")+name;
-      const bytesLabel = n => n < 1024 ? n+" B" : n < 1048576 ? (n/1024).toFixed(1)+" KB" : (n/1048576).toFixed(1)+" MB";
-      const savePendingFiles = async () => {
-        await setDoc(doc(db,COLL,slot.id),{files:pendingFiles,folders:pendingFolders,updatedAt:serverTimestamp()},{merge:true});
-        slots[slot.id]={...slots[slot.id],files:pendingFiles,folders:pendingFolders,updatedAt:new Date()};
-      };
+      const filesListEl  = card.querySelector(".files-list");
+      const addFileBtn   = card.querySelector(".add-file-btn");
+      const addForm      = card.querySelector(".file-add-form");
+      const fileNameInput    = card.querySelector(".file-name-input");
+      const fileContentInput = card.querySelector(".file-content-input");
+      const fileUploadInput = card.querySelector(".file-upload-input");
+      let editingFileName = null;
+      const slotInput    = card.querySelector(".slot-input");
+
+      // ── Slot HTML textarea'sına Drag-Drop ──
+      slotInput.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        slotInput.style.backgroundColor = "rgba(91, 110, 245, 0.1)";
+        slotInput.style.borderColor = "var(--accent)";
+      });
+
+      slotInput.addEventListener("dragleave", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        slotInput.style.backgroundColor = "";
+        slotInput.style.borderColor = "";
+      });
+
+      slotInput.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        slotInput.style.backgroundColor = "";
+        slotInput.style.borderColor = "";
+
+        const files = e.dataTransfer.files;
+        for (let file of files) {
+          if (file.name.endsWith(".html")) {
+            try {
+              const content = await file.text();
+              slotInput.value = content;
+              toast(`Dosya yüklendi: ${file.name}`, "success");
+            } catch (err) {
+              toast(`Hata: ${err.message}`, "error");
+            }
+          }
+        }
+      });
+
+      // ── Ek Dosyalar bölümüne Drag-Drop ──
+      filesListEl.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        filesListEl.style.backgroundColor = "rgba(91, 110, 245, 0.1)";
+        filesListEl.style.borderRadius = "8px";
+      });
+
+      filesListEl.addEventListener("dragleave", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        filesListEl.style.backgroundColor = "";
+      });
+
+      filesListEl.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        filesListEl.style.backgroundColor = "";
+
+        const files = Array.from(e.dataTransfer.files || []);
+        for (const file of files) {
+          try {
+            if (file.name.toLowerCase().endsWith(".html") || file.type.startsWith("text/")) {
+              pendingFiles[file.name] = await file.text();
+            } else {
+              toast(`Cloudinary'ye yükleniyor: ${file.name}`, "info");
+              pendingFiles[file.name] = await uploadAttachmentToCloudinary(file);
+            }
+            renderFilesList();
+            toast(`Dosya eklendi: ${file.name} — slotu kaydedin`, "success");
+          } catch (err) { toast(`Hata: ${err.message}`, "error"); }
+        }
+      });
+
       function renderFilesList() {
-        breadcrumb.innerHTML = `<span>📁 <a href="#" data-folder="">Kök</a></span>` + (currentFolder ? ` / ${currentFolder.split("/").map((p,i,a)=>`<a href="#" data-folder="${escHtml(a.slice(0,i+1).join("/"))}">${escHtml(p)}</a>`).join(" / ")}` : "");
-        breadcrumb.querySelectorAll("a").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();currentFolder=a.dataset.folder;selectedPaths.clear();renderFilesList()}));
-        const folders = pendingFolders.filter(p=>parentPath(p)===currentFolder).map(p=>({path:p,name:basename(p)}));
-        const files = Object.keys(pendingFiles).filter(p=>parentPath(p)===currentFolder).map(path=>({path,name:basename(path),value:pendingFiles[path]}));
-        const rows=[];
-        folders.forEach(f=>rows.push(`<div class="fm-row" data-path="${escHtml(f.path)}" data-kind="folder" draggable="true"><input type="checkbox" class="fm-check" data-path="${escHtml(f.path)}"><div class="fm-file-name">📁 <a href="#" class="fm-open-folder" data-path="${escHtml(f.path)}">${escHtml(f.name)}</a><div class="fm-meta">Klasör</div></div><div class="fm-row-actions"><button class="icon-btn fm-rename" data-path="${escHtml(f.path)}">Adlandır</button></div></div>`));
-        files.forEach(f=>{
-          const v=f.value, cloud=isAttachmentObject(v), mime=cloud?(v.mimeType||"application/octet-stream"):(isTextPath(f.path)?"text/plain":"application/octet-stream");
-          const size=cloud?(v.bytes||0):new Blob([String(v??"")]).size;
-          const icon=mime.startsWith("image/")?"🖼️":/pdf/i.test(mime)?"📕":/html/i.test(f.name)?"🌐":/css/i.test(f.name)?"🎨":/js/i.test(f.name)?"📜":/txt/i.test(f.name)?"📝":"📎";
-          rows.push(`<div class="fm-row" data-path="${escHtml(f.path)}" data-kind="file" draggable="true"><input type="checkbox" class="fm-check" data-path="${escHtml(f.path)}" ${selectedPaths.has(f.path)?"checked":""}><div class="fm-file-name">${icon} ${escHtml(f.name)}<div class="fm-meta">${escHtml(mime)} · ${bytesLabel(size)} · ${escHtml(v?.uploadedAt ? new Date(v.uploadedAt).toLocaleDateString("tr-TR") : "Firestore")}</div></div><div class="fm-row-actions"><button class="icon-btn fm-open" data-path="${escHtml(f.path)}">Aç</button><button class="icon-btn fm-usage" data-path="${escHtml(f.path)}">Slotlar</button><button class="icon-btn fm-rename" data-path="${escHtml(f.path)}">Ad</button><button class="icon-btn fm-replace" data-path="${escHtml(f.path)}">Değiştir</button><button class="icon-btn danger fm-remove" data-path="${escHtml(f.path)}">Sil</button><button class="icon-btn fm-one-download" data-path="${escHtml(f.path)}">İndir</button></div></div>`);
-        });
-        filesListEl.innerHTML=rows.join("")||`<div style="font-size:.7rem;color:var(--text-muted);padding:8px">Bu klasör boş.</div>`;
-        filesListEl.querySelectorAll(".fm-check").forEach(c=>c.addEventListener("change",()=>{c.checked?selectedPaths.add(c.dataset.path):selectedPaths.delete(c.dataset.path)}));
-        filesListEl.querySelectorAll(".fm-open-folder").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();currentFolder=a.dataset.path;selectedPaths.clear();renderFilesList()}));
-        filesListEl.querySelectorAll(".fm-rename").forEach(b=>b.addEventListener("click",async()=>{const old=b.dataset.path, folder=pendingFolders.includes(old), nn=prompt("Yeni ad:",basename(old));if(!nn||!nn.trim())return;const next=joinPath(parentPath(old),nn.trim());if(folder){pendingFolders=pendingFolders.map(p=>p===old?next:p.startsWith(old+"/")?next+p.slice(old.length):p);Object.keys(pendingFiles).filter(p=>p.startsWith(old+"/")).forEach(p=>{pendingFiles[next+p.slice(old.length)]=pendingFiles[p];delete pendingFiles[p]});if(currentFolder===old||currentFolder.startsWith(old+"/"))currentFolder=next+currentFolder.slice(old.length);}else{pendingFiles[next]=pendingFiles[old];delete pendingFiles[old]}await savePendingFiles();renderFilesList();toast("Ad değiştirildi","success")}));
-        filesListEl.querySelectorAll(".fm-remove").forEach(b=>b.addEventListener("click",()=>{delete pendingFiles[b.dataset.path];selectedPaths.delete(b.dataset.path);renderFilesList()}));
-        filesListEl.querySelectorAll(".fm-open").forEach(b=>b.addEventListener("click",()=>openManagedFile(b.dataset.path)));
-        filesListEl.querySelectorAll(".fm-usage").forEach(b=>b.addEventListener("click",()=>{const path=b.dataset.path;const used=Object.values(slots).filter(x=>x.id!==slot.id&&x.files&&Object.prototype.hasOwnProperty.call(x.files,path)).map(x=>x.name||x.id);alert(used.length?`"${path}" dosyası şu slotlarda da var:\n\n${used.join("\n")}`:`"${path}" dosyası başka slotta bulunamadı.`)}));
-        filesListEl.querySelectorAll(".fm-replace").forEach(b=>b.addEventListener("click",()=>{replaceInput.dataset.path=b.dataset.path;replaceInput.click()}));
-        filesListEl.querySelectorAll(".fm-one-download").forEach(b=>b.addEventListener("click",()=>downloadManagedFile(b.dataset.path)));
-        filesListEl.querySelectorAll(".fm-row").forEach(row=>{
-          row.addEventListener("dragstart",e=>e.dataTransfer.setData("text/plain",row.dataset.path));
-          row.addEventListener("dragover",e=>{if(row.dataset.kind==="folder"){e.preventDefault();row.classList.add("drag-over")}});
-          row.addEventListener("dragleave",()=>row.classList.remove("drag-over"));
-          row.addEventListener("drop",async e=>{if(row.dataset.kind!=="folder")return;e.preventDefault();row.classList.remove("drag-over");const from=e.dataTransfer.getData("text/plain"),to=row.dataset.path;if(from===to||to.startsWith(from+"/"))return;if(pendingFiles[from]!==undefined){pendingFiles[joinPath(to,basename(from))]=pendingFiles[from];delete pendingFiles[from]}else if(pendingFolders.includes(from)){pendingFolders=pendingFolders.map(p=>p===from?joinPath(to,basename(from)):p.startsWith(from+"/")?joinPath(to,basename(from))+p.slice(from.length):p);Object.keys(pendingFiles).filter(p=>p.startsWith(from+"/")).forEach(p=>{pendingFiles[joinPath(to,basename(from))+p.slice(from.length)]=pendingFiles[p];delete pendingFiles[p]})}await savePendingFiles();renderFilesList()});
-        });
+        const names = Object.keys(pendingFiles);
+        if (names.length === 0) {
+          filesListEl.innerHTML = `<div style="font-size:0.7rem;color:var(--text-muted);">Henüz ek dosya yok</div>`;
+          return;
+        }
+        filesListEl.innerHTML = names.map(n => {
+          const value = pendingFiles[n];
+          const cloudFile = isAttachmentObject(value);
+          const url = cloudFile ? value.url : "";
+          const icon = cloudFile ? (String(value.mimeType || "").startsWith("image/") ? "🖼️" : "📎") : "📄";
+          return `<div class="file-chip" data-name="${escHtml(n)}">
+            ${url ? `<a class="file-open-link" href="${escHtml(url)}" target="_blank" rel="noopener noreferrer" title="Dosyayı aç">${icon} ${escHtml(n)}</a>` : `<span title="${escHtml(n)}">${icon} ${escHtml(n)}</span>`}
+            <button type="button" class="file-edit-btn" data-name="${escHtml(n)}" title="Düzenle">✎</button>
+            <button type="button" class="file-del-btn" data-name="${escHtml(n)}" title="Sil">✕</button>
+          </div>`;
+        }).join("");
+        filesListEl.querySelectorAll(".file-del-btn").forEach(btn => btn.addEventListener("click", () => {
+          delete pendingFiles[btn.dataset.name];
+          if (editingFileName === btn.dataset.name) resetFileForm();
+          renderFilesList();
+        }));
+        filesListEl.querySelectorAll(".file-edit-btn").forEach(btn => btn.addEventListener("click", () => {
+          const name = btn.dataset.name;
+          const value = pendingFiles[name];
+          editingFileName = name;
+          fileNameInput.value = name;
+          fileContentInput.value = isAttachmentObject(value) ? "" : String(value ?? "");
+          fileContentInput.placeholder = isAttachmentObject(value) ? "Bu dosya Cloudinary'de saklanıyor. Adını değiştirebilir veya aşağıdan yeni dosya seçerek değiştirebilirsiniz." : "Dosya içeriğini düzenleyin...";
+          addForm.style.display = "flex";
+          card.querySelector(".file-confirm-btn").textContent = "Değişiklikleri Uygula";
+          toast(`Düzenleme: ${name}`, "info");
+        }));
       }
-      function downloadBlob(name, blob){const a=document.createElement("a"),url=URL.createObjectURL(blob);a.href=url;a.download=basename(name);a.click();setTimeout(()=>URL.revokeObjectURL(url),1500)}
-      function downloadManagedFile(path){const v=pendingFiles[path];if(v===undefined)return;if(isAttachmentObject(v)){window.open(v.url,"_blank","noopener");return}downloadBlob(path,new Blob([String(v)],{type:isTextPath(path)?"text/plain;charset=utf-8":"application/octet-stream"}))}
-      function openManagedFile(path){const v=pendingFiles[path];if(v===undefined)return;if(isAttachmentObject(v)){window.open(v.url,"_blank","noopener");return}if(/\.(html?|css|js|txt|json|xml|md)$/i.test(path)){editingFileName=path;fileNameInput.value=path;fileContentInput.value=String(v??"");addForm.style.display="flex";fm.querySelector(".file-confirm-btn").textContent="Kaydet";return}toast("Bu dosya türü metin düzenleyicide açılamıyor","info")}
-      fm.querySelector(".fm-new-folder").addEventListener("click",async()=>{const n=prompt("Klasör adı:");if(!n||!n.trim())return;const p=joinPath(currentFolder,n.trim());if(!pendingFolders.includes(p))pendingFolders.push(p);await savePendingFiles();renderFilesList()});
-      addFileBtn.addEventListener("click",()=>uploadInput.click());
-      uploadInput.addEventListener("change",async()=>{for(const file of Array.from(uploadInput.files||[])){const path=joinPath(currentFolder,file.name);try{if(isTextPath(file.name)){pendingFiles[path]=await file.text()}else{toast("Dosya yükleniyor: "+file.name,"info");pendingFiles[path]=await uploadAttachmentToCloudinary(file);pendingFiles[path].uploadedAt=new Date().toISOString()} }catch(err){toast(file.name+": "+err.message,"error")}}uploadInput.value="";renderFilesList();toast("Dosyalar eklendi. Kalıcı olması için slotu kaydedin.","success")});
-      fm.querySelector(".fm-select-all").addEventListener("click",()=>{filesListEl.querySelectorAll(".fm-check").forEach(c=>{c.checked=true;selectedPaths.add(c.dataset.path)})});
-      fm.querySelector(".fm-delete").addEventListener("click",()=>{if(!selectedPaths.size){toast("Önce dosya seçin","error");return}if(!confirm(`${selectedPaths.size} öğe silinsin mi?`))return;for(const p of selectedPaths){delete pendingFiles[p];pendingFolders=pendingFolders.filter(f=>f!==p&&!f.startsWith(p+"/"));}selectedPaths.clear();renderFilesList()});
-      fm.querySelector(".fm-move").addEventListener("click",async()=>{if(!selectedPaths.size){toast("Taşınacak dosyaları seçin","error");return}const dest=prompt("Hedef klasör yolu (kök için boş bırakın):",currentFolder);if(dest===null)return;for(const p of [...selectedPaths]){if(pendingFiles[p]!==undefined){pendingFiles[joinPath(dest.trim().replace(/\/$/,""),basename(p))]=pendingFiles[p];delete pendingFiles[p]}}selectedPaths.clear();renderFilesList()});
-      fm.querySelector(".fm-download").addEventListener("click",()=>{if(!selectedPaths.size){toast("İndirilecek dosyaları seçin","error");return}for(const p of selectedPaths)downloadManagedFile(p)});
-      replaceInput.addEventListener("change",async()=>{const f=replaceInput.files?.[0],p=replaceInput.dataset.path;if(!f||!p)return;pendingFiles[p]=isTextPath(f.name)?await f.text():await uploadAttachmentToCloudinary(f);renderFilesList();replaceInput.value=""});
-      filesListEl.addEventListener("dragover",e=>{if(e.dataTransfer.types.includes("Files"))e.preventDefault()});
-      filesListEl.addEventListener("drop",async e=>{if(!e.dataTransfer.files?.length)return;e.preventDefault();for(const f of Array.from(e.dataTransfer.files)){const p=joinPath(currentFolder,f.name);pendingFiles[p]=isTextPath(f.name)?await f.text():await uploadAttachmentToCloudinary(f)}renderFilesList()});
-      function resetFileForm(){editingFileName=null;fileNameInput.value="";fileContentInput.value="";fileUploadInput.value="";fm.querySelector(".file-confirm-btn").textContent="Ekle"}
-      fm.querySelector(".file-confirm-btn").addEventListener("click",async()=>{let name=fileNameInput.value.trim();if(!name){toast("Dosya adı girin","error");return}const f=fileUploadInput.files?.[0],old=editingFileName;try{let value;if(f)value=isTextPath(name)?await f.text():await uploadAttachmentToCloudinary(f);else value=fileContentInput.value;if(old&&old!==name)delete pendingFiles[old];pendingFiles[name]=value;resetFileForm();addForm.style.display="none";renderFilesList();toast("Dosya hazır. Kalıcı olması için slotu kaydedin.","success")}catch(e){toast("Dosya hatası: "+e.message,"error")}});
-      fm.querySelector(".file-cancel-btn").addEventListener("click",()=>{resetFileForm();addForm.style.display="none"});
-      fileUploadInput.addEventListener("change",async()=>{const f=fileUploadInput.files?.[0];if(!f)return;if(!fileNameInput.value.trim())fileNameInput.value=f.name;if(isTextPath(f.name))fileContentInput.value=await f.text()});
+      function resetFileForm() {
+        editingFileName = null;
+        fileNameInput.value = "";
+        fileContentInput.value = "";
+        fileUploadInput.value = "";
+        fileContentInput.placeholder = "HTML/metin dosyasıysa içeriğini buraya yazın veya dosya seçin...";
+        card.querySelector(".file-confirm-btn").textContent = "Ekle";
+      }
       renderFilesList();
+
+      addFileBtn.addEventListener("click", () => {
+        if (addForm.style.display === "flex") { addForm.style.display = "none"; return; }
+        resetFileForm();
+        addForm.style.display = "flex";
+      });
+
+      card.querySelector(".file-confirm-btn").addEventListener("click", async () => {
+        let name = fileNameInput.value.trim();
+        if (!name) { toast("Dosya adı girin", "error"); return; }
+        const selectedFile = fileUploadInput.files?.[0];
+        const oldName = editingFileName;
+        const oldValue = oldName ? pendingFiles[oldName] : null;
+        try {
+          let newValue;
+          if (selectedFile) {
+            if (selectedFile.name.toLowerCase().endsWith(".html") || selectedFile.type.startsWith("text/")) {
+              newValue = await selectedFile.text();
+            } else {
+              toast(`Cloudinary'ye yükleniyor: ${selectedFile.name}`, "info");
+              newValue = await uploadAttachmentToCloudinary(selectedFile);
+              // Kullanıcı farklı bir ad yazmadıysa gerçek dosya adını kullan
+              if (!name || name === oldName) name = selectedFile.name;
+            }
+          } else if (fileContentInput.value !== "" || !oldName || !isAttachmentObject(oldValue)) {
+            newValue = fileContentInput.value;
+          } else {
+            newValue = { ...oldValue, originalFilename: name };
+          }
+          if (oldName && oldName !== name) delete pendingFiles[oldName];
+          pendingFiles[name] = newValue;
+          resetFileForm();
+          addForm.style.display = "none";
+          renderFilesList();
+          toast("Ek dosya güncellendi — kalıcı olması için slotu Kaydet'e basın", "success");
+        } catch (err) { toast("Dosya işlemi başarısız: " + err.message, "error"); }
+      });
+
+      card.querySelector(".file-cancel-btn").addEventListener("click", () => {
+        resetFileForm();
+        addForm.style.display = "none";
+      });
+
+      fileUploadInput.addEventListener("change", () => {
+        const file = fileUploadInput.files?.[0];
+        if (!file) return;
+        if (!fileNameInput.value.trim() || fileNameInput.value.trim() === editingFileName) fileNameInput.value = file.name;
+        if (file.name.toLowerCase().endsWith(".html") || file.type.startsWith("text/")) {
+          file.text().then(text => { fileContentInput.value = text; });
+        }
+      });
 
       // İsim değişikliği → kaydet
       const nameInput = card.querySelector(".slot-name-input");
@@ -2019,10 +2107,9 @@
             name: nameInput.value,
             html,
             files: pendingFiles,
-            folders: pendingFolders,
             updatedAt: serverTimestamp()
           }, { merge: true });
-          slots[slot.id] = { ...slots[slot.id], name: nameInput.value, html, files: pendingFiles, folders: pendingFolders, updatedAt: new Date() };
+          slots[slot.id] = { ...slots[slot.id], name: nameInput.value, html, files: pendingFiles, updatedAt: new Date() };
           toast("Kaydedildi ✓", "success");
           if (shownSlotId === slot.id) showSlot(slot.id);
         } catch (err) {
